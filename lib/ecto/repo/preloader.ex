@@ -5,6 +5,7 @@ defmodule Ecto.Repo.Preloader do
 
   require Ecto.Query
   require Logger
+  require Util
 
   @doc """
   Transforms a result set based on query preloads, loading
@@ -186,15 +187,17 @@ defmodule Ecto.Repo.Preloader do
           """
         end
 
+        Util.inspect([ids: ids, fetch_ids: fetch_ids, loaded_ids: loaded_ids])
+        # unwrap id list if it's only one; this maintains compatibility to DB engines that don't support arrays
         cond do
           card == :one and loaded? ->
-            {fetch_ids, [ids | loaded_ids], [value | loaded_structs]}
+            {fetch_ids, [unwrap_related_fields(ids) | loaded_ids], [value | loaded_structs]}
           card == :many and loaded? ->
-            {fetch_ids, [{ids, length(value)} | loaded_ids], value ++ loaded_structs}
+            {fetch_ids, [{unwrap_related_fields(ids), length(value)} | loaded_ids], value ++ loaded_structs}
           Enum.any? ids, &is_nil/1 ->
             {fetch_ids, loaded_ids, loaded_structs}
           true ->
-            {[ids | fetch_ids], loaded_ids, loaded_structs}
+            {[unwrap_related_fields(ids) | fetch_ids], loaded_ids, loaded_structs}
         end
     end
   end
@@ -212,7 +215,9 @@ defmodule Ecto.Repo.Preloader do
 
   defp fetch_query(ids, %{cardinality: card} = assoc, repo_name, query, prefix, related_key, take, tuplet) do
     query = assoc.__struct__.assoc_query(assoc, query, Enum.uniq(ids))
+    # unwrap field list if it's only one; this maintains compatibility to DB engines that don't support arrays
     fields = related_key_to_fields(query, related_key)
+    |> unwrap_related_fields()
 
     # Normalize query
     query = %{Ecto.Query.Planner.ensure_select(query, take || true) | prefix: prefix}
@@ -231,6 +236,7 @@ defmodule Ecto.Repo.Preloader do
         :one ->
           query
       end
+      |> Util.inspect
 
     unzip_ids Ecto.Repo.Queryable.all(repo_name, query, tuplet), [], []
   end
@@ -318,6 +324,9 @@ defmodule Ecto.Repo.Preloader do
 
   defp unzip_ids([{k, v}|t], acc1, acc2), do: unzip_ids(t, [k|acc1], [v|acc2])
   defp unzip_ids([], acc1, acc2), do: {acc1, acc2}
+
+  defp unwrap_related_fields([elem]), do: elem
+  defp unwrap_related_fields(elems), do: elems
 
   defp assert_struct!(mod, %{__struct__: mod}), do: true
   defp assert_struct!(mod, %{__struct__: struct}) do

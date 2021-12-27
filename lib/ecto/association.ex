@@ -195,6 +195,7 @@ defmodule Ecto.Association do
   # This function is used by both join_through_chain/3 and filter_through_chain/3 since the algorithm for both
   # is nearly identical barring a few differences.
   defp chain_through(owner, through, join_to, values) do
+    Util.inspect(values)
     # Flatten the chain of throughs. If any of the associations is a HasThrough this allows us to expand it so we have
     # a list of atomic associations to join through.
     {_, through} = flatten_through_chain(owner, through, [])
@@ -1395,6 +1396,7 @@ defmodule Ecto.Association.ManyToMany do
 
   @impl true
   def assoc_query(assoc, query, values) do
+    Util.inspect values
     values = Ecto.Association.transpose_values(values)
     %{queryable: queryable, join_through: join_through, join_keys: join_keys, owner: owner} = assoc
     # TODO does this support composite keys?
