@@ -318,11 +318,11 @@ defmodule Ecto.Association do
   end
 
   defp do_where_fields([key], [nil]) do
-    dynamic([..., q], is_nil(field(q, ^key))) 
+    dynamic([..., q], is_nil(field(q, ^key)))
   end
 
   defp do_where_fields([key], [value]) do
-    dynamic([..., q], field(q, ^key) == ^value) 
+    dynamic([..., q], field(q, ^key) == ^value)
   end
 
   defp do_where_fields([key | keys], [nil | values]) do
