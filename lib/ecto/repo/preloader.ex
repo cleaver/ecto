@@ -167,10 +167,7 @@ defmodule Ecto.Repo.Preloader do
       struct, {fetch_ids, loaded_ids, loaded_structs} ->
         assert_struct!(module, struct)
         %{^field => value} = struct
-        ids = Enum.map(owner_key, fn key -> 
-          %{^key => id} = struct
-          id
-        end)
+        ids = Enum.map(owner_key, &Map.fetch!(struct, &1))
         loaded? = Ecto.assoc_loaded?(value) and not force?
 
         if loaded? and Enum.any?(ids, &is_nil/1) and not Ecto.Changeset.Relation.empty?(assoc, value) do

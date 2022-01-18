@@ -3105,7 +3105,7 @@ defmodule Ecto.Changeset do
 
   defp atom_concat(atoms) do
     atoms
-    |> Enum.map(&to_string/1)
+    |> Enum.map(&Atom.to_string/1)
     |> Enum.join("_")
   end
 end

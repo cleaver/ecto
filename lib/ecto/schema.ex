@@ -1998,7 +1998,7 @@ defmodule Ecto.Schema do
   def __belongs_to__(mod, name, queryable, opts) do
     check_options!(opts, @valid_belongs_to_options, "belongs_to/3")
 
-    opts = Keyword.update(opts, :foreign_key, :"#{name}_id", &List.wrap/1)
+    opts = Keyword.update(opts, :foreign_key, [:"#{name}_id"], &List.wrap/1)
     foreign_key_type = opts[:type] || Module.get_attribute(mod, :foreign_key_type)
 
     if [name] == Keyword.get(opts, :foreign_key) do
