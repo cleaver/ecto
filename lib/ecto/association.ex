@@ -273,11 +273,12 @@ defmodule Ecto.Association do
     combine_assoc_query(query, source.where || [])
   end
 
-  def transpose_values([[_]] = values), do: values
+  def transpose_values([[_]] = values), do: values |> Util.inspect()
   def transpose_values(values) do
     values
     |> Enum.zip()
     |> Enum.map(&Tuple.to_list/1)
+    |> Util.inspect()
   end
 
   def strict_zip([], []), do: []
