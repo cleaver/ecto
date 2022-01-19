@@ -518,7 +518,10 @@ defmodule Ecto do
       structs
       |> Enum.filter(&assert_struct!(schema, &1))
       |> Enum.map(fn struct ->
-        Enum.map(owner_key, &Map.fetch!(struct, &1))
+        case owner_key do
+          [single_key] -> Map.fetch!(struct, single_key)
+          [_ | _] -> owner_key |> Enum.map(&Map.fetch!(struct, &1)) # |> List.to_tuple()
+        end
       end)
       |> Enum.uniq
 

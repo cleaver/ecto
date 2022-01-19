@@ -195,7 +195,6 @@ defmodule Ecto.Association do
   # This function is used by both join_through_chain/3 and filter_through_chain/3 since the algorithm for both
   # is nearly identical barring a few differences.
   defp chain_through(owner, through, join_to, values) do
-    Util.inspect(values)
     # Flatten the chain of throughs. If any of the associations is a HasThrough this allows us to expand it so we have
     # a list of atomic associations to join through.
     {_, through} = flatten_through_chain(owner, through, [])
@@ -249,37 +248,40 @@ defmodule Ecto.Association do
     final_bind = Ecto.Query.Builder.count_binds(query) - 1
 
     values = List.wrap(values)
-    query = case {join_to, values} do
-      {nil, [single_value]} ->
-        dest_out_key
+    # Util.inspect(dest_out_key: dest_out_key, values: values, query: query, join_to: join_to)
+    query = case {join_to, dest_out_key, values} do
+      {nil, [single_key], [single_value]} ->
+        query
+        |> where([{dest, final_bind}], field(dest, ^single_key) == ^single_value)
+
+      {nil, [single_key], values} ->
+        query
+        |> where([{dest, final_bind}], field(dest, ^single_key) in ^values)
+      {nil, dest_out_keys, [single_value]} ->
+        dest_out_keys
         |> Enum.zip(single_value)
         |> Enum.reduce(query, fn {dest_out_key_field, value}, query ->
           query
           |> where([{dest, final_bind}], field(dest, ^dest_out_key_field) == ^value)
         end)
+      {nil, dest_out_keys, values} ->
+        query
+        |> where([{dest, final_bind}], ^where_fields(dest_out_keys, values))
 
-      {nil, values} ->
-        dest_out_key
-        |> Enum.zip(transpose_values(values))
-        |> Enum.reduce(query, fn {dest_out_key_field, values}, query ->
-          query
-          |> where([{dest, final_bind}], field(dest, ^dest_out_key_field) in ^values)
-        end)
-
-      {_, _} ->
+      {_, _, _} ->
         query
     end
 
     combine_assoc_query(query, source.where || [])
   end
 
-  def transpose_values([[_]] = values), do: values |> Util.inspect()
-  def transpose_values(values) do
-    values
-    |> Enum.zip()
-    |> Enum.map(&Tuple.to_list/1)
-    |> Util.inspect()
-  end
+  # TODO this is bogus and should be removed
+  # def transpose_values([[_]] = values), do: values
+  # def transpose_values([[_ | _]] = values) when is_list(values) do
+  #   values
+  #   |> Enum.zip()
+  #   |> Enum.map(&Tuple.to_list/1)
+  # end
 
   def strict_zip([], []), do: []
   def strict_zip([_ | _], []), do: raise ArgumentError, "lists should be of equal length"
@@ -298,24 +300,29 @@ defmodule Ecto.Association do
     dynamic([..., dst, src], field(src, ^src_key) == field(dst, ^dst_key) and ^on_fields(fields))
   end
 
-  def where_fields([key], [[nil]]) do
+  def where_fields([key], [nil]) do
     dynamic([..., q], is_nil(field(q, ^key)))
+    |> Util.inspect
   end
 
-  def where_fields([key], [[value]]) do
+  def where_fields([key], [value]) do
     dynamic([..., q], field(q, ^key) == ^value)
+    |> Util.inspect
   end
 
   def where_fields([key], values) do
     dynamic([..., q], field(q, ^key) in ^List.flatten(values))
+    |> Util.inspect
   end
 
   def where_fields(keys, [values]) do
     dynamic([..., q], ^do_where_fields(keys, values))
+    |> Util.inspect
   end
 
   def where_fields(keys, [values | values_tail]) do
     dynamic([..., q], ^do_where_fields(keys, values) or ^where_fields(keys, values_tail))
+    |> Util.inspect
   end
 
   defp do_where_fields([key], [nil]) do
@@ -329,6 +336,7 @@ defmodule Ecto.Association do
   defp do_where_fields([key | keys], [nil | values]) do
     dynamic([..., q], is_nil(field(q, ^key)) and ^do_where_fields(keys, values))
   end
+
   defp do_where_fields([key | keys], [value | values]) do
     dynamic([..., q], field(q, ^key) == ^value and ^do_where_fields(keys, values))
   end
@@ -1398,7 +1406,6 @@ defmodule Ecto.Association.ManyToMany do
   @impl true
   def assoc_query(assoc, query, values) do
     Util.inspect values
-    values = Ecto.Association.transpose_values(values)
     %{queryable: queryable, join_through: join_through, join_keys: join_keys, owner: owner} = assoc
     # TODO does this support composite keys?
     [[{_join_owner_key, _owner_key}] = join_through_keys, join_related_keys] = join_keys
@@ -1407,18 +1414,22 @@ defmodule Ecto.Association.ManyToMany do
     # We only need to join in the "join table". Preload and Ecto.assoc expressions can then filter
     # by &1.join_owner_key in ^... to filter down to the associated entries in the related table.
     query =
-      from(q in (query || queryable),
-        join: j in ^join_through, on: ^Ecto.Association.on_fields(join_related_keys)
-      )
+      from q in (query || queryable),
+        join: j in ^join_through,
+        on: ^Ecto.Association.on_fields(join_related_keys),
+        where: ^where_fields(owner, join_through_keys, values)
 
-    values
-    |> Enum.zip(join_through_keys)
-    |> Enum.reduce(query, fn {col_values, {join_owner_key_col, owner_key_col}}, query ->
-      owner_key_type = owner.__schema__(:type, owner_key_col)
-      where(query, [_, j], field(j, ^join_owner_key_col) in type(^col_values, {:in, ^owner_key_type}))
-    end)
+    # values
+    # |> Ecto.Association.transpose_values()
+    # |> Enum.zip(join_through_keys)
+    # |> Enum.reduce(query, fn {col_values, {join_owner_key_col, owner_key_col}}, query ->
+    #   owner_key_type = owner.__schema__(:type, owner_key_col)
+    #   where(query, [_, j], field(j, ^join_owner_key_col) in type(^col_values, {:in, ^owner_key_type}))
+    # end)
+    query
     |> Ecto.Association.combine_assoc_query(assoc.where)
     |> Ecto.Association.combine_joins_query(assoc.join_where, 1)
+    |> Util.inspect
   end
 
   @impl true
@@ -1593,21 +1604,66 @@ defmodule Ecto.Association.ManyToMany do
 
 
     unless Enum.all?(values, &is_nil/1) do
-      query = from j in join_through, where: ^where_fields(owner, join_through_keys, values)
+      query = from j in join_through, where: ^where_fields(owner, join_through_keys, [values])
+      Util.inspect query
       Ecto.Repo.Queryable.delete_all repo_name, query, opts
     end
   end
 
-  defp where_fields(owner, [{join_owner_key, owner_key}] = _fields, [value]) do
+  defp where_fields(_owner, [{join_owner_key, _owner_key}] = _fields, [[nil]]) do
+    binding() |> Util.inspect
+    dynamic([..., join_through], is_nil(field(join_through, ^join_owner_key)))
+  end
+
+  defp where_fields(owner, [{join_owner_key, owner_key}] = _fields, [[value]]) do
+    owner_type = owner.__schema__(:type, owner_key)
+    binding() |> Util.inspect
+    dynamic([..., join_through], field(join_through, ^join_owner_key) == type(^value, ^owner_type))
+  end
+
+  defp where_fields(owner, [{join_owner_key, owner_key}] = _fields, values) do
+    owner_type = owner.__schema__(:type, owner_key)
+    binding() |> Util.inspect
+    dynamic([..., join_through], field(join_through, ^join_owner_key) in type(^List.flatten(values), {:in, ^owner_type}))
+  end
+
+  defp where_fields(owner, keys, [values]) do
+    dynamic([..., q], ^do_where_fields(owner, keys, values))
+    |> Util.inspect
+  end
+
+  defp where_fields(owner, keys, [values | values_tail]) do
+    dynamic([..., q], ^do_where_fields(owner, keys, values) or ^where_fields(owner, keys, values_tail))
+    |> Util.inspect
+  end
+
+  defp do_where_fields(_owner, [{join_owner_key, _owner_key}], [nil]) do
+    dynamic([..., join_through], is_nil(field(join_through, ^join_owner_key)))
+  end
+
+  defp do_where_fields(owner, [{join_owner_key, owner_key}], [value]) do
     owner_type = owner.__schema__(:type, owner_key)
     dynamic([..., join_through], field(join_through, ^join_owner_key) == type(^value, ^owner_type))
   end
 
-  defp where_fields(owner, [{join_owner_key, owner_key} | fields], [value | values]) do
+  defp do_where_fields(owner, [{join_owner_key, _owner_key} | keys], [nil | values]) do
+    dynamic([..., join_through], is_nil(field(join_through, ^join_owner_key)) and ^do_where_fields(owner, keys, values))
+  end
+
+  defp do_where_fields(owner, [{join_owner_key, owner_key} | keys], [value | values]) do
     owner_type = owner.__schema__(:type, owner_key)
     dynamic(
       [..., join_through],
-      field(join_through, ^join_owner_key) == type(^value, ^owner_type) and ^where_fields(owner, fields, values)
+      field(join_through, ^join_owner_key) == type(^value, ^owner_type) and ^do_where_fields(owner, keys, [values])
     )
   end
+
+  # defp do_where_fields(owner, [{join_owner_key, owner_key} | fields], [[value | values]]) do
+  #   owner_type = owner.__schema__(:type, owner_key)
+  #   binding() |> Util.inspect
+  #   dynamic(
+  #     [..., join_through],
+  #     field(join_through, ^join_owner_key) == type(^value, ^owner_type) and ^where_fields(owner, fields, [values])
+  #   )
+  # end
 end
