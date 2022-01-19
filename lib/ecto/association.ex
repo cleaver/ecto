@@ -1,5 +1,5 @@
 import Ecto.Query, only: [from: 1, from: 2, join: 4, join: 5, distinct: 3, where: 3, dynamic: 2]
-require Util # TODO delete
+require Debug # TODO delete
 defmodule Ecto.Association.NotLoaded do
   @moduledoc """
   Struct returned by associations when they are not loaded.
@@ -248,7 +248,7 @@ defmodule Ecto.Association do
     final_bind = Ecto.Query.Builder.count_binds(query) - 1
 
     values = List.wrap(values)
-    # Util.inspect(dest_out_key: dest_out_key, values: values, query: query, join_to: join_to)
+    # Debug.inspect(dest_out_key: dest_out_key, values: values, query: query, join_to: join_to)
     query = case {join_to, dest_out_key, values} do
       {nil, [single_key], [single_value]} ->
         query
@@ -302,27 +302,22 @@ defmodule Ecto.Association do
 
   def where_fields([key], [nil]) do
     dynamic([..., q], is_nil(field(q, ^key)))
-    |> Util.inspect
   end
 
   def where_fields([key], [value]) do
     dynamic([..., q], field(q, ^key) == ^value)
-    |> Util.inspect
   end
 
   def where_fields([key], values) do
     dynamic([..., q], field(q, ^key) in ^List.flatten(values))
-    |> Util.inspect
   end
 
   def where_fields(keys, [values]) do
     dynamic([..., q], ^do_where_fields(keys, values))
-    |> Util.inspect
   end
 
   def where_fields(keys, [values | values_tail]) do
     dynamic([..., q], ^do_where_fields(keys, values) or ^where_fields(keys, values_tail))
-    |> Util.inspect
   end
 
   defp do_where_fields([key], [nil]) do
@@ -428,6 +423,7 @@ defmodule Ecto.Association do
     {joins, [join_expr]} = Enum.split(joins, -1)
     %{on: %{params: params, expr: expr} = join_on} = join_expr
     {expr, params} = expand_where(conditions, expr, Enum.reverse(params), length(params), binding)
+    # Debug.inspect(params: params, expr: expr, conditions: conditions)
     %{query | joins: joins ++ [%{join_expr | on: %{join_on | expr: expr, params: params}}]}
   end
 
@@ -437,12 +433,14 @@ defmodule Ecto.Association do
   def combine_assoc_query(query, []), do: query
   def combine_assoc_query(%{wheres: []} = query, conditions) do
     {expr, params} = expand_where(conditions, true, [], 0, 0)
+    # Debug.inspect(params: params, expr: expr, conditions: conditions)
     %{query | wheres: [%Ecto.Query.BooleanExpr{op: :and, expr: expr, params: params, line: __ENV__.line, file: __ENV__.file}]}
   end
   def combine_assoc_query(%{wheres: wheres} = query, conditions) do
     {wheres, [where_expr]} = Enum.split(wheres, -1)
     %{params: params, expr: expr} = where_expr
     {expr, params} = expand_where(conditions, expr, Enum.reverse(params), length(params), 0)
+    # Debug.inspect(params: params, expr: expr, conditions: conditions)
     %{query | wheres: wheres ++ [%{where_expr | expr: expr, params: params}]}
   end
 
@@ -1405,7 +1403,6 @@ defmodule Ecto.Association.ManyToMany do
 
   @impl true
   def assoc_query(assoc, query, values) do
-    Util.inspect values
     %{queryable: queryable, join_through: join_through, join_keys: join_keys, owner: owner} = assoc
     # TODO does this support composite keys?
     [[{_join_owner_key, _owner_key}] = join_through_keys, join_related_keys] = join_keys
@@ -1429,7 +1426,6 @@ defmodule Ecto.Association.ManyToMany do
     query
     |> Ecto.Association.combine_assoc_query(assoc.where)
     |> Ecto.Association.combine_joins_query(assoc.join_where, 1)
-    |> Util.inspect
   end
 
   @impl true
@@ -1605,36 +1601,30 @@ defmodule Ecto.Association.ManyToMany do
 
     unless Enum.all?(values, &is_nil/1) do
       query = from j in join_through, where: ^where_fields(owner, join_through_keys, [values])
-      Util.inspect query
       Ecto.Repo.Queryable.delete_all repo_name, query, opts
     end
   end
 
   defp where_fields(_owner, [{join_owner_key, _owner_key}] = _fields, [[nil]]) do
-    binding() |> Util.inspect
     dynamic([..., join_through], is_nil(field(join_through, ^join_owner_key)))
   end
 
   defp where_fields(owner, [{join_owner_key, owner_key}] = _fields, [[value]]) do
     owner_type = owner.__schema__(:type, owner_key)
-    binding() |> Util.inspect
     dynamic([..., join_through], field(join_through, ^join_owner_key) == type(^value, ^owner_type))
   end
 
   defp where_fields(owner, [{join_owner_key, owner_key}] = _fields, values) do
     owner_type = owner.__schema__(:type, owner_key)
-    binding() |> Util.inspect
     dynamic([..., join_through], field(join_through, ^join_owner_key) in type(^List.flatten(values), {:in, ^owner_type}))
   end
 
   defp where_fields(owner, keys, [values]) do
     dynamic([..., q], ^do_where_fields(owner, keys, values))
-    |> Util.inspect
   end
 
   defp where_fields(owner, keys, [values | values_tail]) do
     dynamic([..., q], ^do_where_fields(owner, keys, values) or ^where_fields(owner, keys, values_tail))
-    |> Util.inspect
   end
 
   defp do_where_fields(_owner, [{join_owner_key, _owner_key}], [nil]) do
@@ -1660,7 +1650,7 @@ defmodule Ecto.Association.ManyToMany do
 
   # defp do_where_fields(owner, [{join_owner_key, owner_key} | fields], [[value | values]]) do
   #   owner_type = owner.__schema__(:type, owner_key)
-  #   binding() |> Util.inspect
+  #   binding() |> Debug.inspect
   #   dynamic(
   #     [..., join_through],
   #     field(join_through, ^join_owner_key) == type(^value, ^owner_type) and ^where_fields(owner, fields, [values])

@@ -5,6 +5,7 @@ defmodule Ecto.Repo.Preloader do
 
   require Ecto.Query
   require Logger
+  require Debug
 
   @doc """
   Transforms a result set based on query preloads, loading
