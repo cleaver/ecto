@@ -181,11 +181,9 @@ defmodule Ecto.Repo.Preloader do
         id = owner_key |> Enum.map(&Map.fetch!(struct, &1))
         loaded? = Ecto.assoc_loaded?(value) and not force?
 
-        if loaded? and Enum.any?(id, &is_nil/1) and
-             not Ecto.Changeset.Relation.empty?(assoc, value) do
-          key_list = "(#{Enum.join(owner_key, ",")})"
-
-          Logger.warn("""
+        if loaded? and Enum.any?(id, &is_nil/1) and not Ecto.Changeset.Relation.empty?(assoc, value) do
+          key_list = "(#{Enum.join(owner_key, ", ")})"
+          Logger.warn """
           association `#{field}` for `#{inspect(module)}` has a loaded value but \
           its association keys `#{key_list}` are nil. This usually means one of:
 
@@ -417,7 +415,7 @@ defmodule Ecto.Repo.Preloader do
 
   defp load_assoc({:assoc, assoc, ids}, struct) do
     %{field: field, owner_key: owner_key, cardinality: cardinality} = assoc
-    key = Enum.map(owner_key, fn owner_key_field -> Map.fetch!(struct, owner_key_field) end)
+    key = Enum.map(owner_key, fn owner_key_field -> Map.fetch!(struct, owner_key_field) end) |> unwrap_list()
 
     loaded =
       case ids do

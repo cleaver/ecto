@@ -663,7 +663,7 @@ defmodule Ecto.Integration.PreloadTest do
 
     assert ExUnit.CaptureLog.capture_log(fn ->
       assert TestRepo.preload(updated, [:author]).author == u1
-    end) =~ ~r/its association key `author_id` is nil/
+    end) =~ ~r/its association keys `\(author_id\)` are nil/
 
     assert TestRepo.preload(updated, [:author], force: true).author == nil
   end
@@ -675,7 +675,7 @@ defmodule Ecto.Integration.PreloadTest do
 
     assert ExUnit.CaptureLog.capture_log(fn ->
       assert TestRepo.preload(updated, [:composite]).composite == c11
-    end) =~ ~r/its association keys `\[composite_a, composite_b\]` are nil/
+    end) =~ ~r/its association keys `\(composite_a, composite_b\)` are nil/
 
     assert TestRepo.preload(updated, [:composite], force: true).composite == nil
   end
