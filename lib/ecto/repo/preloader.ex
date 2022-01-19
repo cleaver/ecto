@@ -5,7 +5,6 @@ defmodule Ecto.Repo.Preloader do
 
   require Ecto.Query
   require Logger
-  require Debug
 
   @doc """
   Transforms a result set based on query preloads, loading
@@ -271,22 +270,17 @@ defmodule Ecto.Repo.Preloader do
     unzip_ids(Ecto.Repo.Queryable.all(repo_name, query, tuplet), [], [])
   end
 
-  defp fetched_records_to_tuple_ids([], _assoc, _related_key),
-    do: []
-
-  defp fetched_records_to_tuple_ids([%{} | _] = entries, _assoc, {0, [single_key]}) do
-    Enum.map(entries, &{[Map.fetch!(&1, single_key)], &1})
-  end
+  defp fetched_records_to_tuple_ids([], _assoc, _related_key), do: []
 
   defp fetched_records_to_tuple_ids([%{} | _] = entries, _assoc, {0, keys}) do
     Enum.map(entries, fn entry ->
-      key = Enum.map(keys, &Map.fetch!(entry, &1))
+      key = Enum.map(keys, &Map.fetch!(entry, &1)) |> unwrap_list()
       {key, entry}
     end)
   end
 
   defp fetched_records_to_tuple_ids([{_, %{}} | _] = entries, _assoc, _related_key) do
-    Enum.map(entries, fn {key, value} -> {List.wrap(key), value} end)
+    Enum.map(entries, fn {key, value} -> {key, value} end)
   end
 
   defp fetched_records_to_tuple_ids([entry | _], assoc, _),

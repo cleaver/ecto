@@ -1644,7 +1644,7 @@ defmodule Ecto.Association.ManyToMany do
     owner_type = owner.__schema__(:type, owner_key)
     dynamic(
       [..., join_through],
-      field(join_through, ^join_owner_key) == type(^value, ^owner_type) and ^do_where_fields(owner, keys, [values])
+      field(join_through, ^join_owner_key) == type(^value, ^owner_type) and ^do_where_fields(owner, keys, values)
     )
   end
 
