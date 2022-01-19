@@ -237,15 +237,14 @@ defmodule Ecto.Repo.Preloader do
          tuplet
        ) do
     query = assoc.__struct__.assoc_query(assoc, query, Enum.uniq(ids))
-
-    # unwrap field list if it's only one; this maintains compatibility to DB engines that don't support arrays
-    fields = unwrap_list(related_key_to_fields(query, related_key))
+    fields = related_key_to_fields(query, related_key)
 
     # Normalize query
     query = %{Ecto.Query.Planner.ensure_select(query, take || true) | prefix: prefix}
 
     # Add the related key to the query results
-    query = update_in(query.select.expr, &{:{}, [], [fields, &1]})
+    # TODO: do we have to unwrap field list if it's only one?
+    query = update_in query.select.expr, &{:{}, [], [unwrap_list(fields), &1]}
 
     # If we are returning many results, we must sort by the key too
     query =
@@ -318,15 +317,17 @@ defmodule Ecto.Repo.Preloader do
       We expected a tuple but we got: #{inspect(entry)}
       """)
 
-  defp preload_order(assoc, query, related_field) do
+  defp preload_order(assoc, query, related_fields) do
     custom_order_by = Enum.map(assoc.preload_order, fn
       {direction, field} ->
-        {direction, unwrap_list related_key_to_fields(query, {0, [field]})}
+        {direction, related_key_to_fields(query, {0, [field]})}
       field ->
-        {:asc, unwrap_list related_key_to_fields(query, {0, [field]})}
+        {:asc, related_key_to_fields(query, {0, [field]})}
     end)
 
-    [{:asc, related_field} | custom_order_by]
+    # fields can be lists and some DB drivers don't support this; flatten out sorting directives to single fields
+    [{:asc, related_fields} | custom_order_by]
+    |> Enum.flat_map(fn {direction, fields} -> Enum.map(fields, &{direction, &1}) end)
   end
 
   defp related_key_to_fields(query, {pos, keys}) do
