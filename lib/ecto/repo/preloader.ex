@@ -181,9 +181,11 @@ defmodule Ecto.Repo.Preloader do
         id = owner_key |> Enum.map(&Map.fetch!(struct, &1))
         loaded? = Ecto.assoc_loaded?(value) and not force?
 
-        if loaded? and Enum.any?(id, &is_nil/1) and not Ecto.Changeset.Relation.empty?(assoc, value) do
+        if loaded? and Enum.any?(id, &is_nil/1) and
+             not Ecto.Changeset.Relation.empty?(assoc, value) do
           key_list = "(#{Enum.join(owner_key, ", ")})"
-          Logger.warn """
+
+          Logger.warn("""
           association `#{field}` for `#{inspect(module)}` has a loaded value but \
           its association keys `#{key_list}` are nil. This usually means one of:
 
@@ -244,7 +246,7 @@ defmodule Ecto.Repo.Preloader do
 
     # Add the related key to the query results
     # TODO: do we have to unwrap field list if it's only one?
-    query = update_in query.select.expr, &{:{}, [], [unwrap_list(fields), &1]}
+    query = update_in(query.select.expr, &{:{}, [], [unwrap_list(fields), &1]})
 
     # If we are returning many results, we must sort by the key too
     query =
@@ -318,12 +320,14 @@ defmodule Ecto.Repo.Preloader do
       """)
 
   defp preload_order(assoc, query, related_fields) do
-    custom_order_by = Enum.map(assoc.preload_order, fn
-      {direction, field} ->
-        {direction, related_key_to_fields(query, {0, [field]})}
-      field ->
-        {:asc, related_key_to_fields(query, {0, [field]})}
-    end)
+    custom_order_by =
+      Enum.map(assoc.preload_order, fn
+        {direction, field} ->
+          {direction, related_key_to_fields(query, {0, [field]})}
+
+        field ->
+          {:asc, related_key_to_fields(query, {0, [field]})}
+      end)
 
     # fields can be lists and some DB drivers don't support this; flatten out sorting directives to single fields
     [{:asc, related_fields} | custom_order_by]
@@ -409,7 +413,10 @@ defmodule Ecto.Repo.Preloader do
 
   defp load_assoc({:assoc, assoc, ids}, struct) do
     %{field: field, owner_key: owner_key, cardinality: cardinality} = assoc
-    key = Enum.map(owner_key, fn owner_key_field -> Map.fetch!(struct, owner_key_field) end) |> unwrap_list()
+
+    key =
+      Enum.map(owner_key, fn owner_key_field -> Map.fetch!(struct, owner_key_field) end)
+      |> unwrap_list()
 
     loaded =
       case ids do
